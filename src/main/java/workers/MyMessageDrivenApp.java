@@ -24,81 +24,44 @@ import java.util.concurrent.Executors;
  */
 public class MyMessageDrivenApp {
 
-    private static final String APP_QUEUE = "MyQueue";
+    private static final String QUEUE_WS_CHECK = "quartzo_myMessageApp_version_doWSCheck";
+    private static final String QUEUE_DO_NOTIFICATION = "quartzo_myMessageApp_version_doNotification";
+    private static final String QUEUE_DO_PERSISTENCE = "quartzo_myMessageApp_version_doPersistence";
     private static Logger logger = LoggerFactory.getLogger(StartProcessProducer.class);
     private static ExecutorService executor = Executors.newFixedThreadPool(4);
     private static AWSCredentials credentials = null;
     private static AmazonSQS sqs;
     private static Region usEast1;
     private static String myQueueUrl;
+    private static AWSQueueServiceUtil awsQueueServiceUtil = AWSQueueServiceUtil.getInstance();
 
     public static void main(String[] args) {
 
-        initSQS();
-        createQueue();
+        createQueues();
 
+        //Creates 3 different producers with 5 interactions
+        StartProcessProducer startProcessProducer1 = new StartProcessProducer(QUEUE_WS_CHECK);
+        StartProcessProducer startProcessProducer2 = new StartProcessProducer(QUEUE_WS_CHECK);
+        StartProcessProducer startProcessProducer3 = new StartProcessProducer(QUEUE_WS_CHECK);
 
-        StartProcessProducer startProcessProducer = new StartProcessProducer(myQueueUrl);
+        executor.execute(startProcessProducer1);
+        executor.execute(startProcessProducer2);
+        executor.execute(startProcessProducer3);
 
-        NotifyConsumer notifyConsumer = new NotifyConsumer(myQueueUrl);
-        CheckWebServiceConsumer checkWebServiceConsumer = new CheckWebServiceConsumer(myQueueUrl);
-        PersistConsumer persistConsumer = new PersistConsumer(myQueueUrl);
+        //Launches 2 different consumers
+        CheckWebServiceConsumer checkWebServiceConsumer1 = new CheckWebServiceConsumer(QUEUE_WS_CHECK);
+        CheckWebServiceConsumer checkWebServiceConsumer2 = new CheckWebServiceConsumer(QUEUE_WS_CHECK);
 
-        executor.execute(startProcessProducer);
+        executor.execute(checkWebServiceConsumer1);
+        executor.execute(checkWebServiceConsumer2);
 
     }
 
-    public static void initSQS() {
-
-        logger.debug("===========================================");
-        logger.debug("Starting Amazon SQS");
-        logger.debug("===========================================");
-
-
-        try {
-            credentials = new ProfileCredentialsProvider().getCredentials();
-            sqs = new AmazonSQSClient(credentials);
-            usEast1 = Region.getRegion(Regions.US_EAST_1);
-            sqs.setRegion(usEast1);
-
-        } catch (Exception e) {
-            throw new AmazonClientException(
-                    "Cannot load the credentials from the credential profiles file. " +
-                            "Please make sure that your credentials file is at the correct " +
-                            "location (~/.aws/credentials), and is in valid format.",
-                    e);
-        }
+    public static void createQueues(){
+        awsQueueServiceUtil.createQueue(QUEUE_WS_CHECK);
+        awsQueueServiceUtil.createQueue(QUEUE_DO_NOTIFICATION);
+        awsQueueServiceUtil.createQueue(QUEUE_DO_PERSISTENCE);
     }
 
-    public static void createQueue() {
-
-        try {
-
-            // Create a queue
-            logger.debug("Creating a new SQS queue called {}.", APP_QUEUE);
-            CreateQueueRequest createQueueRequest = new CreateQueueRequest(APP_QUEUE);
-            myQueueUrl = sqs.createQueue(createQueueRequest).getQueueUrl();
-
-            // List queues
-            logger.debug("Listing all queues in your account.");
-            for (String queueUrl : sqs.listQueues().getQueueUrls()) {
-                logger.debug("  QueueUrl: " + queueUrl);
-            }
-
-        } catch (AmazonServiceException ase) {
-            System.out.println("Caught an AmazonServiceException, which means your request made it " +
-                    "to Amazon SQS, but was rejected with an error response for some reason.");
-            logger.error("Error Message:    " + ase.getMessage());
-            logger.error("HTTP Status Code: " + ase.getStatusCode());
-            logger.error("AWS Error Code:   " + ase.getErrorCode());
-            logger.error("Error Type:       " + ase.getErrorType());
-            logger.error("Request ID:       " + ase.getRequestId());
-        } catch (AmazonClientException ace) {
-            logger.error("Caught an AmazonClientException, which means the client encountered " +
-                    "a serious internal problem while trying to communicate with SQS, such as not " +
-                    "being able to access the network.");
-            logger.error("Error Message: " + ace.getMessage());
-        }
-    }
 
 }

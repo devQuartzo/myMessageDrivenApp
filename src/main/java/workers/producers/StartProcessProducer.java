@@ -10,6 +10,7 @@ import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import workers.AWSQueueServiceUtil;
 
 /**
  * Created by victoraldir on 19/07/2016.
@@ -17,39 +18,41 @@ import org.slf4j.LoggerFactory;
 public class StartProcessProducer implements Runnable {
 
     private String myQueueUrl;
-    private AWSCredentials credentials;
-    private AmazonSQS sqs;
-    private Region usEast1;
+    private AWSQueueServiceUtil awsQueueServiceUtil;
     private Logger logger = LoggerFactory.getLogger(StartProcessProducer.class);
+    private int interactions = 10;
 
     public StartProcessProducer(String myQueueUrl){
 
         this.myQueueUrl = myQueueUrl;
-        initSQS();
+        this.awsQueueServiceUtil = AWSQueueServiceUtil.getInstance();
 
     }
 
     public void run() {
-        logger.debug("StartProcessProducer is running. Publishing message...");
 
-        sqs.sendMessage(new SendMessageRequest(myQueueUrl, "This is my message text."));
+        long time = 5000;
+        long id = Thread.currentThread().getId();
 
-        logger.debug("A message has been sent to {} ", myQueueUrl);
+        for (int i = 0; i < interactions; i++) {
+
+            logger.info("StartProcessProducer of id {} is running. Waiting {} second to publish a message...", id, time/1000);
+
+            delay(time);
+
+            awsQueueServiceUtil.sendMessageToQueue(myQueueUrl, "This is a message from thread " + id);
+
+            logger.info("A message has been sent to {} from threadId {}", myQueueUrl, Thread.currentThread().getId());
+        }
+
     }
 
-    public void initSQS(){
-        try {
-            credentials = new ProfileCredentialsProvider().getCredentials();
-            sqs = new AmazonSQSClient(credentials);
-            usEast1 = Region.getRegion(Regions.US_EAST_1);
-            sqs.setRegion(usEast1);
 
-        } catch (Exception e) {
-            throw new AmazonClientException(
-                    "Cannot load the credentials from the credential profiles file. " +
-                            "Please make sure that your credentials file is at the correct " +
-                            "location (~/.aws/credentials), and is in valid format.",
-                    e);
+    public void delay(long time){
+        try{
+            Thread.sleep(time);
+        }catch (Exception ex){
+
         }
     }
 }
